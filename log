@@ -1,0 +1,61 @@
+2023-04-25 00:23:31.916 UTC [53213] LOG:  starting PostgreSQL 15.2 on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 9.4.0-1ubuntu1~20.04.1) 9.4.0, 64-bit
+2023-04-25 00:23:31.917 UTC [53213] LOG:  listening on IPv6 address "::1", port 5432
+2023-04-25 00:23:31.917 UTC [53213] LOG:  listening on IPv4 address "127.0.0.1", port 5432
+2023-04-25 00:23:31.920 UTC [53213] LOG:  listening on Unix socket "/tmp/.s.PGSQL.5432"
+2023-04-25 00:23:31.925 UTC [53216] LOG:  database system was shut down at 2023-04-25 00:23:31 UTC
+2023-04-25 00:23:31.930 UTC [53213] LOG:  database system is ready to accept connections
+2023-04-25 00:23:44.432 UTC [53221] ERROR:  could not find function information for function "sysinfo_os_name"
+2023-04-25 00:23:44.432 UTC [53221] HINT:  SQL-callable functions need an accompanying PG_FUNCTION_INFO_V1(funcname).
+2023-04-25 00:23:44.432 UTC [53221] STATEMENT:  create extension pg_sysinfo;
+2023-04-25 00:25:05.669 UTC [53313] ERROR:  could not find function information for function "sysinfo_os_name"
+2023-04-25 00:25:05.669 UTC [53313] HINT:  SQL-callable functions need an accompanying PG_FUNCTION_INFO_V1(funcname).
+2023-04-25 00:25:05.669 UTC [53313] STATEMENT:  create extension pg_sysinfo;
+2023-04-25 00:25:43.107 UTC [53347] ERROR:  could not find function information for function "sysinfo_os_release"
+2023-04-25 00:25:43.107 UTC [53347] HINT:  SQL-callable functions need an accompanying PG_FUNCTION_INFO_V1(funcname).
+2023-04-25 00:25:43.107 UTC [53347] STATEMENT:  create extension pg_sysinfo;
+2023-04-25 00:27:45.084 UTC [53213] LOG:  received fast shutdown request
+2023-04-25 00:27:45.086 UTC [53213] LOG:  aborting any active transactions
+2023-04-25 00:27:45.087 UTC [53213] LOG:  background worker "logical replication launcher" (PID 53219) exited with exit code 1
+2023-04-25 00:27:45.088 UTC [53214] LOG:  shutting down
+2023-04-25 00:27:45.089 UTC [53214] LOG:  checkpoint starting: shutdown immediate
+2023-04-25 00:27:45.115 UTC [53214] LOG:  checkpoint complete: wrote 42 buffers (0.3%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.011 s, sync=0.010 s, total=0.028 s; sync files=31, longest=0.003 s, average=0.001 s; distance=169 kB, estimate=169 kB
+2023-04-25 00:27:45.117 UTC [53213] LOG:  database system is shut down
+2023-04-25 00:27:45.204 UTC [53400] LOG:  starting PostgreSQL 15.2 on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 9.4.0-1ubuntu1~20.04.1) 9.4.0, 64-bit
+2023-04-25 00:27:45.204 UTC [53400] LOG:  listening on IPv6 address "::1", port 5432
+2023-04-25 00:27:45.204 UTC [53400] LOG:  listening on IPv4 address "127.0.0.1", port 5432
+2023-04-25 00:27:45.208 UTC [53400] LOG:  listening on Unix socket "/tmp/.s.PGSQL.5432"
+2023-04-25 00:27:45.213 UTC [53403] LOG:  database system was shut down at 2023-04-25 00:27:45 UTC
+2023-04-25 00:27:45.216 UTC [53400] LOG:  database system is ready to accept connections
+2023-04-25 00:28:21.984 UTC [53442] ERROR:  syntax error at or near "sysinfo_os_release" at character 1
+2023-04-25 00:28:21.984 UTC [53442] STATEMENT:  sysinfo_os_release()
+	;
+2023-04-25 00:32:36.095 UTC [53400] LOG:  received fast shutdown request
+2023-04-25 00:32:36.098 UTC [53400] LOG:  aborting any active transactions
+2023-04-25 00:32:36.099 UTC [53400] LOG:  background worker "logical replication launcher" (PID 53406) exited with exit code 1
+2023-04-25 00:32:36.099 UTC [53401] LOG:  shutting down
+2023-04-25 00:32:36.101 UTC [53401] LOG:  checkpoint starting: shutdown immediate
+2023-04-25 00:32:36.121 UTC [53401] LOG:  checkpoint complete: wrote 30 buffers (0.2%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.008 s, sync=0.008 s, total=0.023 s; sync files=24, longest=0.002 s, average=0.001 s; distance=126 kB, estimate=126 kB
+2023-04-25 00:32:36.123 UTC [53400] LOG:  database system is shut down
+2023-04-25 00:32:36.213 UTC [53566] LOG:  starting PostgreSQL 15.2 on x86_64-pc-linux-gnu, compiled by gcc (Ubuntu 9.4.0-1ubuntu1~20.04.1) 9.4.0, 64-bit
+2023-04-25 00:32:36.214 UTC [53566] LOG:  listening on IPv6 address "::1", port 5432
+2023-04-25 00:32:36.214 UTC [53566] LOG:  listening on IPv4 address "127.0.0.1", port 5432
+2023-04-25 00:32:36.217 UTC [53566] LOG:  listening on Unix socket "/tmp/.s.PGSQL.5432"
+2023-04-25 00:32:36.222 UTC [53569] LOG:  database system was shut down at 2023-04-25 00:32:36 UTC
+2023-04-25 00:32:36.224 UTC [53566] LOG:  database system is ready to accept connections
+2023-04-25 00:32:46.872 UTC [53588] ERROR:  could not find function "sysinfo_speed" in file "/usr/local/pgsql.15/lib/pg_sysinfo.so"
+2023-04-25 00:32:46.872 UTC [53588] STATEMENT:  create extension pg_sysinfo;
+2023-04-25 00:33:53.737 UTC [53566] LOG:  server process (PID 53626) was terminated by signal 11: Segmentation fault
+2023-04-25 00:33:53.737 UTC [53566] DETAIL:  Failed process was running: select * from sysinfo_disk();
+2023-04-25 00:33:53.737 UTC [53566] LOG:  terminating any other active server processes
+2023-04-25 00:33:53.740 UTC [53629] FATAL:  the database system is in recovery mode
+2023-04-25 00:33:53.741 UTC [53566] LOG:  all server processes terminated; reinitializing
+2023-04-25 00:33:53.760 UTC [53630] LOG:  database system was interrupted; last known up at 2023-04-25 00:32:36 UTC
+2023-04-25 00:33:53.960 UTC [53630] LOG:  database system was not properly shut down; automatic recovery in progress
+2023-04-25 00:33:53.962 UTC [53630] LOG:  redo starts at 0/151F970
+2023-04-25 00:33:53.963 UTC [53630] LOG:  invalid record length at 0/1559C20: wanted 24, got 0
+2023-04-25 00:33:53.963 UTC [53630] LOG:  redo done at 0/1559BE8 system usage: CPU: user: 0.00 s, system: 0.00 s, elapsed: 0.00 s
+2023-04-25 00:33:53.967 UTC [53631] LOG:  checkpoint starting: end-of-recovery immediate wait
+2023-04-25 00:33:53.988 UTC [53631] LOG:  checkpoint complete: wrote 49 buffers (0.3%); 0 WAL file(s) added, 0 removed, 0 recycled; write=0.008 s, sync=0.009 s, total=0.023 s; sync files=31, longest=0.003 s, average=0.001 s; distance=232 kB, estimate=232 kB
+2023-04-25 00:33:53.990 UTC [53566] LOG:  database system is ready to accept connections
+2023-04-25 00:34:02.656 UTC [53639] ERROR:  Unable to create composite result type
+2023-04-25 00:34:02.656 UTC [53639] STATEMENT:  select * from sysinfo_ram();

@@ -1,0 +1,12 @@
+# pg_sysinfo extension for PostgreSQL
+
+comment = 'System information functions for PostgreSQL'
+
+# Extension information
+default_version = '1.0'
+module_pathname = '$libdir/pg_sysinfo'
+relocatable = true
+
+
+
+
