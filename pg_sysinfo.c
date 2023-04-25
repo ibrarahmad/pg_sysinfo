@@ -96,10 +96,11 @@ Datum sysinfo_os_version(PG_FUNCTION_ARGS)
 
     PG_RETURN_TEXT_P(cstring_to_text(os_version));
 }
+
 Datum sysinfo_ram(PG_FUNCTION_ARGS)
 {
     struct sysinfo si;
-    long total_ram, free_ram, used_ram;
+    double total_ram, free_ram, used_ram;
     Datum values[3];
     bool nulls[3] = { false, false, false };
     TupleDesc tupleDesc;
@@ -122,9 +123,9 @@ Datum sysinfo_ram(PG_FUNCTION_ARGS)
     }
 
     /* Set the values */
-    values[0] = CStringGetTextDatum("RAM");
-    values[1] = CStringGetTextDatum(psprintf("%ld/%ld MB", used_ram / (1024 * 1024), total_ram / (1024 * 1024)));
-    values[2] = CStringGetTextDatum(psprintf("%.2f%%", (double)used_ram / total_ram * 100));
+    values[0] = Float8GetDatumFast(total_ram / (1024*1024*1024));
+    values[1] = Float8GetDatumFast(used_ram /(1024*1024*1024));
+    values[1] = Float8GetDatumFast(free_ram / (1024*1024*1024));
 
     /* Build the tuple */
     tuple = heap_form_tuple(tupleDesc, values, nulls);
@@ -138,65 +139,166 @@ Datum sysinfo_ram(PG_FUNCTION_ARGS)
 /* Returns information about disk space usage. */
 Datum sysinfo_disk(PG_FUNCTION_ARGS)
 {
-    DIR* dir;
-    struct dirent* entry;
-    struct statvfs stat;
-    int block_size;
-    int total_size = 0;
-    int used_size = 0;
-    int free_size = 0;
-    sysinfo_data* result;
+	ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
+    TupleDesc tupdesc;
+    Datum values[4];
+    bool nulls[4] = {false};
+    double total_size = 0;
+    double used_size = 0;
+    double free_size = 0;
+	Tuplestorestate *tupstore;
+ 	MemoryContext per_query_ctx;                                                
+ 	MemoryContext oldcontext;                                                   
+	struct statvfs fsInfo;
+    int result = 0;
+	FILE *mtabFile;
+    char device[256], mountPoint[256];
 
-    MemoryContext old_context = CurrentMemoryContext;
-    MemoryContext temp_context = AllocSetContextCreate(CurrentMemoryContext,
-                                                       "sysinfo_disk temporary context",
-                                                       ALLOCSET_SMALL_MINSIZE,
-                                                       ALLOCSET_SMALL_INITSIZE,
-                                                       ALLOCSET_SMALL_MAXSIZE);
+	/* Switch into long-lived context to construct returned data structures */
+	per_query_ctx = rsinfo->econtext->ecxt_per_query_memory;                    
+    oldcontext = MemoryContextSwitchTo(per_query_ctx);
+	
+	/* Build a tuple descriptor for our result type */
+    if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE)
+        elog(ERROR, "return type must be a row type");
 
-    /* Switch to the temporary context for allocating the result */
-    MemoryContextSwitchTo(temp_context);
+	tupstore = tuplestore_begin_heap(true, false, 1024);
+    /* Build the result tuple */
+ 	
+	rsinfo->returnMode = SFRM_Materialize;                                      
+    rsinfo->setResult = tupstore;                                               
+    rsinfo->setDesc = tupdesc;  
 
-    dir = opendir("/");
+    result = statvfs("/", &fsInfo); // Get the root filesystem info
+    if (result == 0)
+	{
+		mountPoint[0] = '/'; mountPoint[1] = 0;
+		total_size = fsInfo.f_blocks * fsInfo.f_frsize;
+		free_size  = fsInfo.f_bfree * fsInfo.f_frsize;
+		used_size  = (fsInfo.f_blocks - fsInfo.f_bfree) * fsInfo.f_frsize;
+    	
+		values[0] = CStringGetTextDatum(mountPoint);
+    	values[1] = Float8GetDatumFast(total_size/ (1024*1024*1024)); 
+    	values[2] = Float8GetDatumFast(used_size /(1024*1024*1024));
+    	values[3] =	Float8GetDatumFast(free_size / (1024*1024*1024));
+		tuplestore_putvalues(tupstore, tupdesc, values, nulls);
+	}
 
-    if (dir == NULL) {
-        ereport(ERROR,
-                (errcode(ERRCODE_EXTERNAL_ROUTINE_INVOCATION_EXCEPTION),
-                 errmsg("Failed to open root directory")));
-    }
-
-    while ((entry = readdir(dir)) != NULL) {
-        char path[PATH_MAX];
-
-        if (entry->d_name[0] == '.') {
-            continue;
+    mtabFile = fopen("/etc/mtab", "r"); // Open /etc/mtab file to get all mounted filesystems
+    if (mtabFile != NULL) 
+	{
+        while (!feof(mtabFile)) {
+            result = fscanf(mtabFile, "%255s %255s", device, mountPoint);
+            if (result == 2)
+		   	{
+                result = statvfs(mountPoint, &fsInfo);
+				if (result == 0)
+				{
+					total_size = fsInfo.f_blocks * fsInfo.f_frsize;
+					free_size  = fsInfo.f_bfree * fsInfo.f_frsize;
+					used_size  = (fsInfo.f_blocks - fsInfo.f_bfree) * fsInfo.f_frsize;
+    				values[0] = CStringGetTextDatum(mountPoint);
+    				values[1] = Float8GetDatumFast(total_size / (1024*1024*1024));
+    				values[2] = Float8GetDatumFast(used_size / (1024*1024*1024));
+    				values[3] = Float8GetDatumFast(free_size / (1024*1024*1024));
+					tuplestore_putvalues(tupstore, tupdesc, values, nulls);
+            	}
+			}
         }
-
-        snprintf(path, sizeof(path), "/%s", entry->d_name);
-
-        if (statvfs(path, &stat) != 0) {
-            continue;
-        }
-
-        block_size = stat.f_frsize;
-        total_size += block_size * stat.f_blocks;
-        used_size += block_size * (stat.f_blocks - stat.f_bfree);
-        free_size += block_size * stat.f_bfree;
+        fclose(mtabFile);
     }
-
-    closedir(dir);
-
+	tuplestore_donestoring(tupstore);
     /* Switch back to the original context before returning */
-    MemoryContextSwitchTo(old_context);
+    MemoryContextSwitchTo(oldcontext);
 
-    /* Allocate the result in the original context */
-    result = (sysinfo_data*) palloc(sizeof(sysinfo_data));
-    result->name = "Disk";
-    result->total_size = total_size;
-    result->used_size = used_size;
-    result->free_size = free_size;
-
-    PG_RETURN_POINTER(result);
+	return (Datum) 0; 
 }
 
+Datum
+sysinfo_cpu(PG_FUNCTION_ARGS)
+{
+	ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
+    TupleDesc tupdesc;
+    Datum values[3];
+    bool nulls[3] = {false};
+    int ncpus;
+    int ncores;
+    char *cpu_make;
+    FILE *cpuinfo;
+    char line[1024];
+	Tuplestorestate *tupstore;
+   MemoryContext per_query_ctx;                                                
+   MemoryContext oldcontext;                                                   
+    
+	cpuinfo = fopen("/proc/cpuinfo", "r");
+
+    if (cpuinfo == NULL)
+        ereport(ERROR, (errcode(ERRCODE_EXTERNAL_ROUTINE_INVOCATION_EXCEPTION), errmsg("Failed to open /proc/cpuinfo")));
+    
+	/* Switch into long-lived context to construct returned data structures */
+	per_query_ctx = rsinfo->econtext->ecxt_per_query_memory;                    
+    oldcontext = MemoryContextSwitchTo(per_query_ctx);
+
+	 /* Build a tuple descriptor for our result type */
+    if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE)
+        elog(ERROR, "return type must be a row type");
+
+    ncpus = 0;
+    ncores = 0;
+    cpu_make = NULL;
+
+    while (fgets(line, sizeof(line), cpuinfo) != NULL) {
+        char *name = NULL;
+        char *value = NULL;
+
+        if (sscanf(line, "%m[^:]:%ms", &name, &value) == 2) {
+            /* Remove leading and trailing whitespace from name and value */
+            char *p = name + strlen(name) - 1;
+
+            while (isspace(*p) && p > name) {
+                *p-- = '\0';
+            }
+
+            p = value + strlen(value) - 1;
+
+            while (isspace(*p) && p > value) {
+                *p-- = '\0';
+            }
+
+            if (strcmp(name, "model name") == 0) {
+                /* This is the CPU make */
+                cpu_make = value;
+            } else if (strcmp(name, "processor") == 0) {
+                /* This is a logical CPU */
+                ncpus++;
+            } else if (strcmp(name, "core id") == 0) {
+                /* This is a core within a physical CPU */
+                ncores++;
+            }
+
+            /* Free memory allocated by sscanf */
+            free(name);
+            free(value);
+        }
+    }
+
+    fclose(cpuinfo);
+	
+	tupstore = tuplestore_begin_heap(true, false, 1024);
+    /* Build the result tuple */
+ 	
+	rsinfo->returnMode = SFRM_Materialize;                                      
+    rsinfo->setResult = tupstore;                                               
+    rsinfo->setDesc = tupdesc;  
+
+	values[0] = cpu_make == NULL ? (Datum) 0 : CStringGetTextDatum(cpu_make);
+    values[1] = Int32GetDatum(ncpus);
+    values[2] = Int32GetDatum(ncores);
+	tuplestore_putvalues(tupstore, tupdesc, values, nulls);
+	
+	tuplestore_donestoring(tupstore);
+	MemoryContextSwitchTo(oldcontext);
+
+	return (Datum) 0; 
+}
 
