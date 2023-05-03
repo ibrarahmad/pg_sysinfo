@@ -22,6 +22,11 @@ SELECT * FROM pg_raminfo;
 SELECT * FROM pg_diskinfo;
 ```
 
+```sql
+SELECT cron.schedule('pg_update_sys_usage', '5 seconds', 'SELECT pg_update_sys_usage()');
+```
+
+
 ## Examples
 
 ``` 
