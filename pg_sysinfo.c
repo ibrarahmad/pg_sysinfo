@@ -14,8 +14,20 @@
 #include <string.h>
 #include <sys/types.h>
 #include <dirent.h>
+#include <sys/resource.h>
 
+#include "postmaster/bgworker.h"
 #include "fmgr.h"
+#include "miscadmin.h"
+#include "storage/ipc.h"
+#include "storage/latch.h"
+#include "storage/proc.h"
+#include "storage/shmem.h"
+#include "storage/spin.h"
+#include "utils/builtins.h"
+#include "utils/guc.h"
+#include "utils/memutils.h"
+#include "utils/timestamp.h"
 #include "utils/builtins.h"
 #include "utils/array.h"
 #include "utils/elog.h"
@@ -32,19 +44,28 @@ typedef struct {
     int free_size;
 } sysinfo_data;
 
-Datum sysinfo_os_name(PG_FUNCTION_ARGS);                                        
+void _PG_init(void);
+
+Datum sysinfo_os_name(PG_FUNCTION_ARGS);
 Datum sysinfo_os_release(PG_FUNCTION_ARGS);                                     
 Datum sysinfo_os_version(PG_FUNCTION_ARGS);                                     
 Datum sysinfo_cpu(PG_FUNCTION_ARGS);                                            
 Datum sysinfo_disk(PG_FUNCTION_ARGS);                                           
 Datum sysinfo_ram(PG_FUNCTION_ARGS);                                            
 
+PG_FUNCTION_INFO_V1(my_worker_task);
 PG_FUNCTION_INFO_V1(sysinfo_os_name);
 PG_FUNCTION_INFO_V1(sysinfo_os_release);
 PG_FUNCTION_INFO_V1(sysinfo_os_version);
 PG_FUNCTION_INFO_V1(sysinfo_cpu);                                           
+PG_FUNCTION_INFO_V1(sysinfo_cpu_usage);                                           
 PG_FUNCTION_INFO_V1(sysinfo_disk);                                          
 PG_FUNCTION_INFO_V1(sysinfo_ram);                                          
+
+void _PG_init(void)
+{
+		/* Init */
+}
 
 /* Returns the name of the operating system. */
 Datum sysinfo_os_name(PG_FUNCTION_ARGS)
@@ -97,8 +118,25 @@ Datum sysinfo_os_version(PG_FUNCTION_ARGS)
     PG_RETURN_TEXT_P(cstring_to_text(os_version));
 }
 
+/*
+ * sysinfo_ram - a PostgreSQL function to retrieve RAM usage information
+ *
+ * This function uses the sysinfo() function to retrieve the total, used, and free RAM.
+ * It then builds a tuple with three Float8 values, representing the total, used, and free RAM in gigabytes (GB).
+ *
+ * Parameters:
+ * - None
+ *
+ * Returns:
+ * - A tuple with three Float8 values: total RAM, used RAM, and free RAM (in GB)
+ *
+ * Throws:
+ * - ERROR if failed to retrieve RAM information or create composite result type
+ */
+
 Datum sysinfo_ram(PG_FUNCTION_ARGS)
 {
+    /* Define variables */
     struct sysinfo si;
     double total_ram, free_ram, used_ram;
     Datum values[3];
@@ -123,9 +161,9 @@ Datum sysinfo_ram(PG_FUNCTION_ARGS)
     }
 
     /* Set the values */
-    values[0] = Float8GetDatumFast(total_ram / (1024*1024*1024));
-    values[1] = Float8GetDatumFast(used_ram /(1024*1024*1024));
-    values[1] = Float8GetDatumFast(free_ram / (1024*1024*1024));
+    values[0] = Float8GetDatumFast(total_ram / (1024 * 1024 * 1024));
+    values[1] = Float8GetDatumFast(used_ram / (1024 * 1024 * 1024));
+    values[2] = Float8GetDatumFast(free_ram / (1024 * 1024 * 1024));
 
     /* Build the tuple */
     tuple = heap_form_tuple(tupleDesc, values, nulls);
@@ -133,6 +171,7 @@ Datum sysinfo_ram(PG_FUNCTION_ARGS)
     /* Make the result */
     result = HeapTupleGetDatum(tuple);
 
+    /* Return the result */
     PG_RETURN_DATUM(result);
 }
 
@@ -215,6 +254,56 @@ Datum sysinfo_disk(PG_FUNCTION_ARGS)
 }
 
 Datum
+sysinfo_cpu_usage(PG_FUNCTION_ARGS)
+{
+	ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
+    TupleDesc tupdesc;
+    Datum values[3];
+    bool nulls[3] = {false};
+    double user_time;
+    double system_time;
+    double total_time;
+	struct rusage usage;
+	Tuplestorestate *tupstore;
+	MemoryContext per_query_ctx;
+	MemoryContext oldcontext;                                                   
+    
+	/* Switch into long-lived context to construct returned data structures */
+	per_query_ctx = rsinfo->econtext->ecxt_per_query_memory;                    
+    oldcontext = MemoryContextSwitchTo(per_query_ctx);
+
+	 /* Build a tuple descriptor for our result type */
+    if (get_call_result_type(fcinfo, NULL, &tupdesc) != TYPEFUNC_COMPOSITE)
+        elog(ERROR, "return type must be a row type");
+
+    if (getrusage(RUSAGE_SELF, &usage) != 0) {
+        perror("Error calling getrusage");
+        return 1;
+    }
+
+    user_time = (double) usage.ru_utime.tv_sec + (double) usage.ru_utime.tv_usec / 1000000.0;
+    system_time = (double) usage.ru_stime.tv_sec + (double) usage.ru_stime.tv_usec / 1000000.0;
+    total_time = user_time + system_time;
+
+	tupstore = tuplestore_begin_heap(true, false, 1024);
+
+	/* Build the result tuple */
+	rsinfo->returnMode = SFRM_Materialize;                                      
+    rsinfo->setResult = tupstore;                                               
+    rsinfo->setDesc = tupdesc;  
+
+    values[0] = Float8GetDatumFast(user_time);
+    values[1] = Float8GetDatumFast(system_time);
+    values[2] = Float8GetDatumFast(total_time);
+	tuplestore_putvalues(tupstore, tupdesc, values, nulls);
+	
+	tuplestore_donestoring(tupstore);
+	MemoryContextSwitchTo(oldcontext);
+
+	return (Datum) 0; 
+}
+
+Datum
 sysinfo_cpu(PG_FUNCTION_ARGS)
 {
 	ReturnSetInfo *rsinfo = (ReturnSetInfo *) fcinfo->resultinfo;
@@ -227,8 +316,8 @@ sysinfo_cpu(PG_FUNCTION_ARGS)
     FILE *cpuinfo;
     char line[1024];
 	Tuplestorestate *tupstore;
-   MemoryContext per_query_ctx;                                                
-   MemoryContext oldcontext;                                                   
+	MemoryContext per_query_ctx;
+	MemoryContext oldcontext;                                                   
     
 	cpuinfo = fopen("/proc/cpuinfo", "r");
 
@@ -301,4 +390,3 @@ sysinfo_cpu(PG_FUNCTION_ARGS)
 
 	return (Datum) 0; 
 }
-
